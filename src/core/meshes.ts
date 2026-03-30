@@ -1,0 +1,21 @@
+export const G1_MESHES = [
+  'pelvis.STL',
+  'pelvis_contour_link.STL',
+  'left_hip_pitch_link.STL',
+  'left_hip_roll_link.STL',
+  'left_hip_yaw_link.STL',
+  'left_knee_link.STL',
+  'left_ankle_pitch_link.STL',
+  'left_ankle_roll_link.STL',
+  'right_hip_pitch_link.STL',
+  'right_hip_roll_link.STL',
+  'right_hip_yaw_link.STL',
+  'right_knee_link.STL',
+  'right_ankle_pitch_link.STL',
+  'right_ankle_roll_link.STL',
+  'waist_yaw_link_rev_1_0.STL',
+  'waist_roll_link_rev_1_0.STL',
+  'torso_link_rev_1_0.STL',
+  'logo_link.STL',
+  'head_link.STL'
+];
