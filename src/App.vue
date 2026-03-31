@@ -14,11 +14,20 @@ let controls: OrbitControls
 let robotRenderer: RobotRenderer
 
 onMounted(async () => {
-  initThreeJS()
-  await init()
+  try {
+    initThreeJS()
+    await init()
+  } catch (e) {
+    status.value = '初始化失败: ' + (e as Error).message
+    console.error(e)
+  }
 })
 
 async function init() {
+  if (!robotRenderer) {
+    status.value = '初始化失败'
+    return
+  }
   try {
     status.value = '加载机器人模型...'
     await robotRenderer.loadRobot('/examples/scenes/g1/g1.xml')
@@ -30,15 +39,29 @@ async function init() {
 }
 
 function initThreeJS() {
+  if (!canvasContainer.value) {
+    throw new Error('Canvas container not found')
+  }
+
   scene = new THREE.Scene()
   scene.background = new THREE.Color(0x2a3f5f)
 
   camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100)
-  camera.position.set(2, 1.5, 3)
+  camera.position.set(3, 2, 4)
 
-  renderer = new THREE.WebGLRenderer({ antialias: true })
-  renderer.setSize(window.innerWidth, window.innerHeight)
-  canvasContainer.value?.appendChild(renderer.domElement)
+  try {
+    renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      canvas: document.createElement('canvas'),
+      context: undefined,
+      powerPreference: 'high-performance',
+      failIfMajorPerformanceCaveat: false
+    })
+    renderer.setSize(window.innerWidth, window.innerHeight)
+    canvasContainer.value.appendChild(renderer.domElement)
+  } catch (e) {
+    throw new Error('WebGL初始化失败，请刷新页面重试')
+  }
 
   controls = new OrbitControls(camera, renderer.domElement)
   controls.target.set(0, 0.8, 0)
@@ -63,6 +86,7 @@ function initThreeJS() {
 }
 
 function animate() {
+  if (!renderer) return
   requestAnimationFrame(animate)
   controls.update()
   renderer.render(scene, camera)

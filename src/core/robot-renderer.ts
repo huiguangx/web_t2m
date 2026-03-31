@@ -45,6 +45,8 @@ export class RobotRenderer {
     }
 
     this.robot.position.set(0, 0, 0);
+    // MuJoCo Z-up 转 Three.js Y-up：绕 X 轴旋转 -90 度
+    this.robot.rotation.x = -Math.PI / 2;
   }
 
   private async parseBody(
