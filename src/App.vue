@@ -3,6 +3,8 @@ import { ref, onMounted } from 'vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { RobotRenderer } from './core/robot-renderer'
+import { MotionLoader } from './core/motion'
+import { AnimationController } from './core/animation-controller'
 
 const canvasContainer = ref<HTMLDivElement>()
 const status = ref('初始化中...')
@@ -12,6 +14,7 @@ let camera: THREE.PerspectiveCamera
 let renderer: THREE.WebGLRenderer
 let controls: OrbitControls
 let robotRenderer: RobotRenderer
+let animController: AnimationController
 
 onMounted(async () => {
   try {
@@ -31,6 +34,15 @@ async function init() {
   try {
     status.value = '加载机器人模型...'
     await robotRenderer.loadRobot('/examples/scenes/g1/g1.xml')
+
+    status.value = '加载动作数据...'
+    const motionLoader = new MotionLoader()
+    const motionData = await motionLoader.loadMotion('walk1_subject1.json')
+
+    animController = new AnimationController()
+    animController.loadMotion(motionData)
+    animController.play()
+
     status.value = '就绪'
   } catch (e) {
     status.value = '错误: ' + (e as Error).message
@@ -88,6 +100,14 @@ function initThreeJS() {
 function animate() {
   if (!renderer) return
   requestAnimationFrame(animate)
+
+  if (animController && robotRenderer) {
+    const frame = animController.getCurrentFrame()
+    if (frame) {
+      robotRenderer.updatePose(frame.jointPos, frame.rootPos)
+    }
+  }
+
   controls.update()
   renderer.render(scene, camera)
 }

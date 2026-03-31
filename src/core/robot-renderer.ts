@@ -5,6 +5,7 @@ export class RobotRenderer {
   private scene: THREE.Scene;
   private robot: THREE.Group;
   private loader: STLLoader;
+  private bodyMap: Map<string, THREE.Group> = new Map();
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -52,6 +53,57 @@ export class RobotRenderer {
     this.robot.visible = true;
   }
 
+  updatePose(jointPos: number[], rootPos: number[]) {
+    const joints = [
+      { name: 'left_hip_pitch_link', axis: 'y' },
+      { name: 'left_hip_roll_link', axis: 'x' },
+      { name: 'left_hip_yaw_link', axis: 'z' },
+      { name: 'left_knee_link', axis: 'y' },
+      { name: 'left_ankle_pitch_link', axis: 'y' },
+      { name: 'left_ankle_roll_link', axis: 'x' },
+      { name: 'right_hip_pitch_link', axis: 'y' },
+      { name: 'right_hip_roll_link', axis: 'x' },
+      { name: 'right_hip_yaw_link', axis: 'z' },
+      { name: 'right_knee_link', axis: 'y' },
+      { name: 'right_ankle_pitch_link', axis: 'y' },
+      { name: 'right_ankle_roll_link', axis: 'x' },
+      { name: 'waist_yaw_link', axis: 'z' },
+      { name: 'waist_roll_link', axis: 'x' },
+      { name: 'waist_pitch_link', axis: 'y' },
+      { name: 'left_shoulder_pitch_link', axis: 'y' },
+      { name: 'left_shoulder_roll_link', axis: 'x' },
+      { name: 'left_shoulder_yaw_link', axis: 'z' },
+      { name: 'left_elbow_link', axis: 'y' },
+      { name: 'left_wrist_roll_link', axis: 'x' },
+      { name: 'left_wrist_pitch_link', axis: 'y' },
+      { name: 'left_wrist_yaw_link', axis: 'z' },
+      { name: 'right_shoulder_pitch_link', axis: 'y' },
+      { name: 'right_shoulder_roll_link', axis: 'x' },
+      { name: 'right_shoulder_yaw_link', axis: 'z' },
+      { name: 'right_elbow_link', axis: 'y' },
+      { name: 'right_wrist_roll_link', axis: 'x' },
+      { name: 'right_wrist_pitch_link', axis: 'y' },
+      { name: 'right_wrist_yaw_link', axis: 'z' }
+    ];
+
+    for (let i = 0; i < Math.min(jointPos.length, joints.length); i++) {
+      const body = this.bodyMap.get(joints[i].name);
+      if (body) {
+        const angle = jointPos[i];
+        if (joints[i].axis === 'x') {
+          body.rotation.set(angle, 0, 0);
+        } else if (joints[i].axis === 'y') {
+          body.rotation.set(0, angle, 0);
+        } else {
+          body.rotation.set(0, 0, angle);
+        }
+      }
+    }
+
+    const groundOffset = 0.78;
+    this.robot.position.set(rootPos[0], rootPos[2] - groundOffset, rootPos[1]);
+  }
+
   private async parseBody(
     bodyElement: Element,
     parent: THREE.Object3D,
@@ -68,6 +120,8 @@ export class RobotRenderer {
       group.name = name;
       group.position.copy(pos);
       parent.add(group);
+
+      this.bodyMap.set(name, group);
 
       // 加载该 body 的所有 geom
       const geoms = body.querySelectorAll(':scope > geom');
