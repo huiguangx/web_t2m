@@ -3,7 +3,8 @@
     "allow": [
       "Bash(git push:*)",
       "Bash(git remote:*)",
-      "Read(//c/Users/magiclab/.ssh/**)"
+      "Read(//c/Users/magiclab/.ssh/**)",
+      "WebSearch"
     ]
   }
 }

@@ -9,6 +9,7 @@ export class RobotRenderer {
   constructor(scene: THREE.Scene) {
     this.scene = scene;
     this.robot = new THREE.Group();
+    this.robot.visible = false;
     this.loader = new STLLoader();
     this.scene.add(this.robot);
   }
@@ -47,6 +48,8 @@ export class RobotRenderer {
     this.robot.position.set(0, 0, 0);
     // MuJoCo Z-up 转 Three.js Y-up：绕 X 轴旋转 -90 度
     this.robot.rotation.x = -Math.PI / 2;
+
+    this.robot.visible = true;
   }
 
   private async parseBody(
