@@ -14,6 +14,12 @@ export class MotionLoader {
     return this.motionIndex!.motions;
   }
 
+  async loadMotionIndex(): Promise<MotionIndex> {
+    const res = await fetch(`${this.baseUrl}/motions.json`);
+    this.motionIndex = await res.json();
+    return this.motionIndex!;
+  }
+
   async loadMotion(filename: string): Promise<MotionFrame> {
     const path = `${this.baseUrl}/motions/${filename}`;
     const res = await fetch(path);

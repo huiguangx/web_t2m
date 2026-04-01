@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>ECHO Debug</title>
+</head>
+<body>
+  <h1>调试信息</h1>
+  <div id="info"></div>
+  <script>
+    async function test() {
+      const info = document.getElementById('info')
+
+      // 测试1: 加载motions.json
+      try {
+        const res = await fetch('/examples/checkpoints/g1/motions.json')
+        const data = await res.json()
+        info.innerHTML += `<p>✅ motions.json加载成功: ${data.motions.length}个动作</p>`
+        info.innerHTML += `<pre>${JSON.stringify(data.motions.slice(0, 3), null, 2)}</pre>`
+      } catch (e) {
+        info.innerHTML += `<p>❌ motions.json加载失败: ${e.message}</p>`
+      }
+
+      // 测试2: 加载一个动作文件
+      try {
+        const res = await fetch('/examples/checkpoints/g1/motions/walk1_subject1.json')
+        const data = await res.json()
+        info.innerHTML += `<p>✅ walk1动作加载成功: ${data.joint_pos.length}帧</p>`
+      } catch (e) {
+        info.innerHTML += `<p>❌ walk1动作加载失败: ${e.message}</p>`
+      }
+    }
+    test()
+  </script>
+</body>
+</html>

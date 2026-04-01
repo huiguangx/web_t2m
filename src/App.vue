@@ -5,9 +5,19 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { RobotRenderer } from './core/robot-renderer'
 import { MotionLoader } from './core/motion'
 import { AnimationController } from './core/animation-controller'
+import { PhysicsController } from './core/physics-controller'
+import { CloudAPI } from './core/cloud-api'
+import { MotionConverter } from './core/motion-converter'
+import type { MotionIndex } from './core/types'
 
 const canvasContainer = ref<HTMLDivElement>()
 const status = ref('初始化中...')
+const motionList = ref<MotionIndex['motions']>([])
+const selectedMotion = ref('')
+const isPlaying = ref(false)
+const usePhysics = ref(false)
+const textInput = ref('')
+const isGenerating = ref(false)
 
 let scene: THREE.Scene
 let camera: THREE.PerspectiveCamera
@@ -15,6 +25,9 @@ let renderer: THREE.WebGLRenderer
 let controls: OrbitControls
 let robotRenderer: RobotRenderer
 let animController: AnimationController
+let motionLoader: MotionLoader
+let physicsController: PhysicsController
+let cloudAPI: CloudAPI
 
 onMounted(async () => {
   try {
@@ -34,19 +47,102 @@ async function init() {
   try {
     status.value = '加载机器人模型...'
     await robotRenderer.loadRobot('/examples/scenes/g1/g1.xml')
+    console.log('✅ 机器人模型加载完成')
 
-    status.value = '加载动作数据...'
-    const motionLoader = new MotionLoader()
-    const motionData = await motionLoader.loadMotion('walk1_subject1.json')
+    status.value = '初始化物理引擎（测试简单模型）...'
+    physicsController = new PhysicsController()
+    // 先用简单XML测试MuJoCo是否能工作
+    await physicsController.init('/test_simple.xml')
+    console.log('✅ 物理引擎初始化完成')
 
-    animController = new AnimationController()
-    animController.loadMotion(motionData)
-    animController.play()
+    cloudAPI = new CloudAPI()
+
+    status.value = '加载动作列表...'
+    motionLoader = new MotionLoader()
+    const index = await motionLoader.loadMotionIndex()
+    motionList.value = index.motions
+    console.log('✅ 动作列表加载完成:', motionList.value.length)
+
+    if (motionList.value.length > 0) {
+      selectedMotion.value = motionList.value[0].file
+      await loadSelectedMotion()
+    }
 
     status.value = '就绪'
   } catch (e) {
     status.value = '错误: ' + (e as Error).message
-    console.error(e)
+    console.error('❌ 初始化错误:', e)
+  }
+}
+
+async function loadSelectedMotion() {
+  if (!selectedMotion.value) return
+  try {
+    status.value = '加载动作...'
+    const motionData = await motionLoader.loadMotion(selectedMotion.value)
+
+    if (!animController) {
+      animController = new AnimationController()
+    }
+    animController.loadMotion(motionData)
+    animController.play()
+    isPlaying.value = true
+    status.value = '播放中'
+  } catch (e) {
+    status.value = '加载失败: ' + (e as Error).message
+  }
+}
+
+function togglePlayPause() {
+  if (!animController) return
+  if (isPlaying.value) {
+    animController.pause()
+    status.value = '已暂停'
+  } else {
+    animController.play()
+    status.value = '播放中'
+  }
+  isPlaying.value = !isPlaying.value
+}
+
+function togglePhysics() {
+  usePhysics.value = !usePhysics.value
+  if (physicsController) {
+    physicsController.enablePhysics(usePhysics.value)
+  }
+  status.value = usePhysics.value ? '物理模式' : '直接播放'
+}
+
+async function generateMotion() {
+  if (!textInput.value.trim() || isGenerating.value) return
+
+  try {
+    isGenerating.value = true
+    status.value = '生成中...'
+
+    const result = await cloudAPI.generate({
+      text: textInput.value,
+      motion_length: 5.0,
+      num_inference_steps: 10
+    })
+
+    status.value = '等待生成完成...'
+    const motionData = await cloudAPI.pollMotion(result.motion_id)
+
+    const localFormat = MotionConverter.cloud38ToLocal29(motionData.motion_data)
+
+    if (!animController) {
+      animController = new AnimationController()
+    }
+    animController.loadMotion(localFormat)
+    animController.play()
+    isPlaying.value = true
+
+    status.value = '生成完成'
+  } catch (e) {
+    status.value = '生成失败: ' + (e as Error).message
+  } finally {
+    isGenerating.value = false
   }
 }
 
@@ -104,7 +200,13 @@ function animate() {
   if (animController && robotRenderer) {
     const frame = animController.getCurrentFrame()
     if (frame) {
-      robotRenderer.updatePose(frame.jointPos, frame.rootPos)
+      if (usePhysics.value && physicsController) {
+        physicsController.step(frame.jointPos).then(actualPos => {
+          robotRenderer.updatePose(actualPos, frame.rootPos)
+        })
+      } else {
+        robotRenderer.updatePose(frame.jointPos, frame.rootPos)
+      }
     }
   }
 
@@ -120,6 +222,40 @@ function animate() {
     <div class="controls">
       <h1>ECHO: Humanoid Motion Control</h1>
       <div class="status">{{ status }}</div>
+
+      <div class="control-group">
+        <label>动作选择:</label>
+        <select v-model="selectedMotion" @change="loadSelectedMotion">
+          <option v-for="motion in motionList" :key="motion.file" :value="motion.file">
+            {{ motion.name }}
+          </option>
+        </select>
+      </div>
+
+      <div class="control-group">
+        <label>文本生成:</label>
+        <input
+          v-model="textInput"
+          type="text"
+          placeholder="输入动作描述..."
+          @keyup.enter="generateMotion"
+        />
+        <button @click="generateMotion" :disabled="isGenerating">
+          {{ isGenerating ? '生成中...' : '生成' }}
+        </button>
+      </div>
+
+      <div class="control-group">
+        <button @click="togglePlayPause">
+          {{ isPlaying ? '暂停' : '播放' }}
+        </button>
+      </div>
+
+      <div class="control-group">
+        <button @click="togglePhysics">
+          {{ usePhysics ? '关闭物理' : '启用物理' }}
+        </button>
+      </div>
     </div>
     <div ref="canvasContainer" class="canvas-container"></div>
   </div>
@@ -153,13 +289,49 @@ function animate() {
 .status {
   font-size: 12px;
   color: #aaa;
+  margin-bottom: 15px;
+}
+
+.control-group {
   margin-bottom: 10px;
 }
 
+.control-group label {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 5px;
+  color: #ccc;
+}
+
 .controls select, .controls button {
-  margin: 5px;
+  width: 100%;
   padding: 8px 12px;
   font-size: 14px;
+  border-radius: 4px;
+  border: 1px solid #555;
+  background: #333;
+  color: white;
+  cursor: pointer;
+}
+
+.controls input {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 14px;
+  border-radius: 4px;
+  border: 1px solid #555;
+  background: #333;
+  color: white;
+  margin-bottom: 5px;
+}
+
+.controls button:hover {
+  background: #444;
+}
+
+.controls button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .canvas-container {
