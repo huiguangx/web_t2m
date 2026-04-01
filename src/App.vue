@@ -49,10 +49,18 @@ async function init() {
     await robotRenderer.loadRobot('/examples/scenes/g1/g1.xml')
     console.log('✅ 机器人模型加载完成')
 
-    status.value = '初始化物理引擎（测试g1模型）...'
+    status.value = '初始化物理引擎...'
     physicsController = new PhysicsController()
-    await physicsController.init('/examples/scenes/g1/g1.xml')
-    console.log('✅ 物理引擎初始化完成')
+    try {
+      await physicsController.init(
+        '/examples/scenes/g1/g1.xml',
+        '/examples/checkpoints/g1/policy_amass.onnx',
+        '/examples/checkpoints/g1/tracking_policy_amass.json'
+      )
+      console.log('✅ 物理引擎初始化完成')
+    } catch (e) {
+      console.warn('⚠️ 物理引擎初始化失败，仅支持动作播放:', e)
+    }
 
     cloudAPI = new CloudAPI()
 
