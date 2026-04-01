@@ -20,6 +20,14 @@ export class MujocoLoader {
     await loadMeshesToVFS(this.mujoco, basePath);
     console.log('5. Mesh加载完成')
 
+    // 验证mesh文件是否存在
+    try {
+      const files = this.mujoco.FS.readdir('/working/meshes');
+      console.log('虚拟文件系统中的mesh文件:', files);
+    } catch (e) {
+      console.error('无法读取/working/meshes目录:', e);
+    }
+
     console.log('6. 获取XML...')
     const xmlRes = await fetch(xmlPath);
     let xmlText = await xmlRes.text();

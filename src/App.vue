@@ -49,10 +49,9 @@ async function init() {
     await robotRenderer.loadRobot('/examples/scenes/g1/g1.xml')
     console.log('✅ 机器人模型加载完成')
 
-    status.value = '初始化物理引擎（测试简单模型）...'
+    status.value = '初始化物理引擎（测试g1模型）...'
     physicsController = new PhysicsController()
-    // 先用简单XML测试MuJoCo是否能工作
-    await physicsController.init('/test_simple.xml')
+    await physicsController.init('/examples/scenes/g1/g1.xml')
     console.log('✅ 物理引擎初始化完成')
 
     cloudAPI = new CloudAPI()
