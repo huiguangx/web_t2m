@@ -2,12 +2,14 @@
 import { ref, onMounted } from 'vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import Stats from 'stats.js'
 import { RobotRenderer } from './core/robot-renderer'
 import { MotionLoader } from './core/motion'
 import { AnimationController } from './core/animation-controller'
 import { PhysicsController } from './core/physics-controller'
 import { CloudAPI } from './core/cloud-api'
 import { MotionConverter } from './core/motion-converter'
+import { Reflector } from './core/Reflector'
 import type { MotionIndex } from './core/types'
 
 const canvasContainer = ref<HTMLDivElement>()
@@ -28,6 +30,7 @@ let animController: AnimationController
 let motionLoader: MotionLoader
 let physicsController: PhysicsController
 let cloudAPI: CloudAPI
+let stats: Stats
 
 onMounted(async () => {
   try {
@@ -159,50 +162,97 @@ function initThreeJS() {
   }
 
   scene = new THREE.Scene()
-  scene.background = new THREE.Color(0x2a3f5f)
+  scene.background = new THREE.Color(0.15, 0.25, 0.35)
+  scene.fog = new THREE.Fog(scene.background, 15, 25.5)
 
-  camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100)
-  camera.position.set(3, 2, 4)
+  camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.001, 100)
+  camera.position.set(2.0, 1.7, 1.7)
+  scene.add(camera)
 
-  try {
-    renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      canvas: document.createElement('canvas'),
-      context: undefined,
-      powerPreference: 'high-performance',
-      failIfMajorPerformanceCaveat: false
-    })
-    renderer.setSize(window.innerWidth, window.innerHeight)
-    canvasContainer.value.appendChild(renderer.domElement)
-  } catch (e) {
-    throw new Error('WebGL初始化失败，请刷新页面重试')
-  }
+  renderer = new THREE.WebGLRenderer({ antialias: true })
+  renderer.setPixelRatio(1.0)
+  renderer.setSize(window.innerWidth, window.innerHeight)
+  renderer.shadowMap.enabled = true
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap
+  THREE.ColorManagement.enabled = false
+  renderer.outputColorSpace = THREE.LinearSRGBColorSpace
+  canvasContainer.value.appendChild(renderer.domElement)
 
   controls = new OrbitControls(camera, renderer.domElement)
-  controls.target.set(0, 0.8, 0)
+  controls.target.set(0, 0.7, 0)
+  controls.panSpeed = 2
+  controls.zoomSpeed = 1
+  controls.enableDamping = true
+  controls.dampingFactor = 0.10
+  controls.screenSpacePanning = true
   controls.update()
 
-  const light1 = new THREE.DirectionalLight(0xffffff, 0.8)
-  light1.position.set(2, 3, 4)
-  scene.add(light1)
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.2 * 3.14)
+  scene.add(ambientLight)
 
-  const light2 = new THREE.DirectionalLight(0xffffff, 0.5)
-  light2.position.set(-2, 3, 3)
-  scene.add(light2)
+  const spotlight = new THREE.SpotLight()
+  spotlight.angle = 1.5
+  spotlight.distance = 10000
+  spotlight.penumbra = 0.5
+  spotlight.castShadow = true
+  spotlight.intensity = spotlight.intensity * 3.14 * 15.0
+  spotlight.shadow.mapSize.width = 1024
+  spotlight.shadow.mapSize.height = 1024
+  spotlight.shadow.camera.near = 0.1
+  spotlight.shadow.camera.far = 100
+  spotlight.position.set(0, 5, 0)
+  const targetObject = new THREE.Object3D()
+  scene.add(targetObject)
+  spotlight.target = targetObject
+  targetObject.position.set(0, 1, 0)
+  scene.add(spotlight)
 
-  scene.add(new THREE.AmbientLight(0x404040, 0.5))
+  const groundGeometry = new THREE.PlaneGeometry(100, 100)
 
-  const grid = new THREE.GridHelper(10, 10, 0x444444, 0x222222)
-  scene.add(grid)
+  const canvas = document.createElement('canvas')
+  canvas.width = 360
+  canvas.height = 360
+  const ctx = canvas.getContext('2d')!
+  const tileSize = 18
+  for (let y = 0; y < 20; y++) {
+    for (let x = 0; x < 20; x++) {
+      ctx.fillStyle = (x + y) % 2 === 0 ? 'rgb(51, 77, 102)' : 'rgb(26, 51, 77)'
+      ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize)
+    }
+  }
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.wrapS = THREE.RepeatWrapping
+  texture.wrapT = THREE.RepeatWrapping
+  texture.repeat.set(10, 10)
+
+  const reflector = new Reflector(groundGeometry, { clipBias: 0.003, texture })
+  reflector.rotateX(-Math.PI / 2)
+  scene.add(reflector)
+
+  stats = new Stats()
+  stats.dom.style.position = 'absolute'
+  stats.dom.style.top = '0px'
+  stats.dom.style.right = '0px'
+  stats.dom.style.left = 'auto'
+  document.body.appendChild(stats.dom)
 
   robotRenderer = new RobotRenderer(scene)
 
+  window.addEventListener('resize', onWindowResize)
   animate()
+}
+
+function onWindowResize() {
+  camera.aspect = window.innerWidth / window.innerHeight
+  camera.updateProjectionMatrix()
+  renderer.setSize(window.innerWidth, window.innerHeight)
 }
 
 function animate() {
   if (!renderer) return
   requestAnimationFrame(animate)
+
+  stats.begin()
 
   if (animController && robotRenderer) {
     const frame = animController.getCurrentFrame()
@@ -219,6 +269,8 @@ function animate() {
 
   controls.update()
   renderer.render(scene, camera)
+
+  stats.end()
 }
 
 

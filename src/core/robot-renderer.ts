@@ -153,6 +153,8 @@ export class RobotRenderer {
       });
 
       const mesh = new THREE.Mesh(geometry, material);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
       parent.add(mesh);
     } catch (e) {
       console.warn(`加载失败: ${path}`);
